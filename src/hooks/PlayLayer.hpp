@@ -1,0 +1,15 @@
+#pragma once
+
+#include <Geode/Geode.hpp>
+#include <Geode/modify/PlayLayer.hpp>
+
+struct HookPlayLayer : geode::Modify<HookPlayLayer, PlayLayer> {
+    struct Fields {
+        std::vector<geode::Ref<GameObject>> m_startPosObjects;
+        int m_startPosIdx = 0;
+    };
+
+    void addObject(GameObject* obj);
+    void createObjectsFromSetupFinished();
+    void updateStartPos(int index);
+};

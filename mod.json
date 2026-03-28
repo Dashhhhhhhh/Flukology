@@ -1,0 +1,71 @@
+{
+	"geode": "5.4.1",
+	"gd": {
+		"win": "2.2081",
+		"android": "2.2081",
+		"mac": "2.2081",
+		"ios": "2.2081"
+	},
+	"id": "mineralwater.dashcoach",
+	"name": "DashCoach",
+	"version": "v1.0.0",
+	"developer": "mineralwater",
+	"description": "DashCoach base mod with startpos switching and a placeholder pause-menu button.",
+	"dependencies": {
+		"geode.node-ids": ">=v1.20.0"
+	},
+	"settings": {
+		"leftSwitch": {
+			"type": "keybind",
+			"name": "Previous Startpos",
+			"description": "Switches to the previous start position, wrapping around.",
+			"default": "Q",
+			"category": "gameplay"
+		},
+		"rightSwitch": {
+			"type": "keybind",
+			"name": "Next Startpos",
+			"description": "Switches to the next start position, wrapping around.",
+			"default": "E",
+			"category": "gameplay"
+		},
+		"opacity": {
+			"name": "Overlay Opacity",
+			"default": 50,
+			"max": 100,
+			"min": 0,
+			"control": {
+				"slider": true,
+				"slider-step": 1
+			},
+			"type": "float"
+		},
+		"hide": {
+			"name": "Don't Fade On Start",
+			"description": "Keeps the overlay at its target opacity when the level first opens.",
+			"default": false,
+			"type": "bool"
+		},
+		"hideBtns": {
+			"name": "Hide Buttons",
+			"description": "Hides the on-screen startpos arrows.",
+			"default": false,
+			"type": "bool"
+		},
+		"ignoreDisabled": {
+			"name": "Ignore Disabled",
+			"description": "Ignores start positions that have been disabled in the editor.",
+			"default": false,
+			"type": "bool"
+		}
+	},
+	"links": {
+		"source": "https://github.com/capeling/Startpos-Switcher"
+	},
+	"tags": [
+		"enhancement",
+		"gameplay",
+		"interface",
+		"utility"
+	]
+}

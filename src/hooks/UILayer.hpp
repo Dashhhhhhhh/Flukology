@@ -1,0 +1,17 @@
+#pragma once
+
+#include <Geode/Geode.hpp>
+#include <Geode/modify/UILayer.hpp>
+
+struct HookUILayer : geode::Modify<HookUILayer, UILayer> {
+    struct Fields {
+        geode::Ref<CCMenuItemSpriteExtra> m_nextSwitcherBtn = nullptr;
+        geode::Ref<CCMenuItemSpriteExtra> m_prevSwitcherBtn = nullptr;
+        geode::Ref<cocos2d::CCLabelBMFont> m_switcherLabel = nullptr;
+        geode::Ref<cocos2d::CCMenu> m_switcherMenu = nullptr;
+        bool m_firstUpdate = true;
+    };
+
+    bool init(GJBaseGameLayer* baseGame);
+    void updateUI();
+};

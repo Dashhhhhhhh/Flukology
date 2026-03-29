@@ -115,8 +115,7 @@ namespace {
             true,
             startPos->m_uniqueID
         );
-        auto const songTime = std::max(startTime + startPos->m_startSettings->m_songOffset, 0.f);
-        return static_cast<unsigned int>(std::lround(songTime * 1000.f));
+        return static_cast<unsigned int>(std::lround(std::max(startTime, 0.f) * 1000.f));
     }
 
     void syncMusicToCurrentStartPos(HookPlayLayer* playLayer) {
@@ -131,7 +130,7 @@ namespace {
 
         FMODAudioEngine::sharedEngine()->setMusicTimeMS(
             getStartPosMusicTimeMS(playLayer, startPosObject),
-            true,
+            false,
             0
         );
     }
@@ -226,8 +225,8 @@ void HookPlayLayer::resetLevel() {
     PlayLayer::resetLevel();
     if (startPosChanged) {
         startMusic();
+        syncMusicToCurrentStartPos(this);
     }
-    syncMusicToCurrentStartPos(this);
     resetActiveRunTracking();
 
     if (auto* uiLayer = typeinfo_cast<UILayer*>(m_uiLayer)) {

@@ -59,9 +59,6 @@
 			"type": "bool"
 		}
 	},
-	"links": {
-		"source": "https://github.com/capeling/Startpos-Switcher"
-	},
 	"tags": [
 		"enhancement",
 		"gameplay",

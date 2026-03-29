@@ -12,16 +12,33 @@ struct RunStats {
     std::vector<int> m_deathPercents;
 };
 
+enum class LearnModeStage {
+    SectionRuns,
+    CompletionBacktrack,
+    RecoveryLoop,
+};
+
+struct LearnModeProgress {
+    bool m_enabled = false;
+    LearnModeStage m_stage = LearnModeStage::SectionRuns;
+    std::vector<int> m_passedRuns;
+    int m_resumeStartPosIdx = 0;
+};
+
 struct HookPlayLayer : geode::Modify<HookPlayLayer, PlayLayer> {
     struct Fields {
         std::vector<geode::Ref<GameObject>> m_startPosObjects;
         std::vector<RunStats> m_runStats;
         std::string m_runStatsSaveKey;
+        std::string m_learnModeSaveKey;
         int m_startPosIdx = 0;
         int m_activeRunIdx = -1;
         bool m_activeRunPassed = false;
         bool m_learnModeEnabled = false;
-        bool m_learnAdvancePending = false;
+        LearnModeStage m_learnStage = LearnModeStage::SectionRuns;
+        std::vector<bool> m_learnPassedRuns;
+        int m_learnResumeStartPosIdx = 0;
+        bool m_hasPersistentLearnModeState = false;
         int m_pendingStartPosIdx = -1;
     };
 
@@ -43,10 +60,12 @@ struct HookPlayLayer : geode::Modify<HookPlayLayer, PlayLayer> {
     std::string getRunStatsSaveKey();
     void loadPersistentRunStats();
     void savePersistentRunStats();
+    std::string getLearnModeSaveKey();
+    void loadPersistentLearnMode();
+    void savePersistentLearnMode();
     void rebuildRunStats();
     void resetActiveRunTracking();
     void markRunAttempt(int runIndex);
     void markRunPass(int runIndex);
-    void queuePreviousLearnStartPos();
     void recordBestReach(int runIndex, float percent);
 };

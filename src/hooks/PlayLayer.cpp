@@ -47,6 +47,38 @@ namespace matjson {
             return geode::Ok(std::move(stats));
         }
     };
+
+    template <>
+    struct Serialize<LearnModeProgress> {
+        static Value toJson(LearnModeProgress const& value) {
+            return matjson::makeObject({
+                { "enabled", value.m_enabled },
+                { "stage", static_cast<int>(value.m_stage) },
+                { "passed-runs", value.m_passedRuns },
+                { "resume-startpos-idx", value.m_resumeStartPosIdx },
+            });
+        }
+
+        static geode::Result<LearnModeProgress> fromJson(Value const& value) {
+            LearnModeProgress progress;
+            GEODE_UNWRAP_INTO(auto enabled, value["enabled"].asBool());
+            GEODE_UNWRAP_INTO(auto stage, value["stage"].asInt());
+            GEODE_UNWRAP_INTO(auto passedRuns, value["passed-runs"].as<std::vector<int>>());
+            GEODE_UNWRAP_INTO(auto resumeStartPosIdx, value["resume-startpos-idx"].asInt());
+
+            progress.m_enabled = enabled;
+            auto const stageValue = static_cast<int>(stage);
+            progress.m_stage = static_cast<LearnModeStage>(std::clamp(
+                stageValue,
+                static_cast<int>(LearnModeStage::SectionRuns),
+                static_cast<int>(LearnModeStage::RecoveryLoop)
+            ));
+            progress.m_passedRuns = std::move(passedRuns);
+            progress.m_resumeStartPosIdx = resumeStartPosIdx;
+
+            return geode::Ok(std::move(progress));
+        }
+    };
 }
 
 namespace {
@@ -211,7 +243,7 @@ void HookPlayLayer::destroyPlayer(PlayerObject* player, GameObject* object) {
                 fields->m_runStats[deathRunIndex].m_deathPercents.push_back(roundedPercent(deathPercent));
                 savePersistentRunStats();
             }
-            queuePreviousLearnStartPos();
+            dashcoach::learn_mode::onDeath(this, deathPercent);
             resetActiveRunTracking();
         }
     }
@@ -230,7 +262,7 @@ void HookPlayLayer::levelComplete() {
         markRunAttempt(runIndex);
         recordBestReach(runIndex, 100.f);
         markRunPass(runIndex);
-        queuePreviousLearnStartPos();
+        dashcoach::learn_mode::onLevelComplete(this);
         resetActiveRunTracking();
     }
 
@@ -285,6 +317,20 @@ std::string HookPlayLayer::getRunStatsSaveKey() {
     );
 }
 
+std::string HookPlayLayer::getLearnModeSaveKey() {
+    if (!m_level) {
+        return "";
+    }
+
+    auto const levelString = std::string(m_level->m_levelString);
+    return fmt::format(
+        "learn-mode.{}.{}.{}",
+        static_cast<int>(m_level->m_levelType),
+        static_cast<int>(m_level->m_levelID),
+        hashString(levelString)
+    );
+}
+
 void HookPlayLayer::loadPersistentRunStats() {
     auto fields = m_fields.self();
     fields->m_runStatsSaveKey = getRunStatsSaveKey();
@@ -324,6 +370,74 @@ void HookPlayLayer::savePersistentRunStats() {
     }
 
     Mod::get()->setSavedValue(fields->m_runStatsSaveKey, fields->m_runStats);
+}
+
+void HookPlayLayer::loadPersistentLearnMode() {
+    auto fields = m_fields.self();
+    fields->m_learnModeSaveKey = getLearnModeSaveKey();
+    if (fields->m_learnModeSaveKey.empty()) {
+        return;
+    }
+
+    auto const savedProgress = Mod::get()->getSavedValue<LearnModeProgress>(fields->m_learnModeSaveKey, {});
+    if (
+        !Mod::get()->hasSavedValue(fields->m_learnModeSaveKey) ||
+        savedProgress.m_passedRuns.empty() && !savedProgress.m_enabled && savedProgress.m_resumeStartPosIdx == 0
+    ) {
+        fields->m_hasPersistentLearnModeState = false;
+        fields->m_learnModeEnabled = false;
+        fields->m_learnStage = LearnModeStage::SectionRuns;
+        fields->m_learnPassedRuns.assign(fields->m_runStats.size(), false);
+        fields->m_learnResumeStartPosIdx = static_cast<int>(fields->m_startPosObjects.size());
+        return;
+    }
+
+    fields->m_hasPersistentLearnModeState = true;
+    fields->m_learnModeEnabled = savedProgress.m_enabled;
+    fields->m_learnStage = savedProgress.m_stage;
+    fields->m_learnPassedRuns.assign(fields->m_runStats.size(), false);
+    for (size_t index = 0; index < fields->m_learnPassedRuns.size() && index < savedProgress.m_passedRuns.size(); ++index) {
+        fields->m_learnPassedRuns[index] = savedProgress.m_passedRuns[index] != 0;
+    }
+
+    if (savedProgress.m_passedRuns.size() != fields->m_runStats.size()) {
+        fields->m_learnStage = LearnModeStage::SectionRuns;
+        std::ranges::fill(fields->m_learnPassedRuns, false);
+    }
+
+    fields->m_learnResumeStartPosIdx = std::clamp(
+        savedProgress.m_resumeStartPosIdx,
+        0,
+        static_cast<int>(fields->m_startPosObjects.size())
+    );
+
+    if (fields->m_learnModeEnabled) {
+        setSelectedStartPos(fields->m_learnResumeStartPosIdx);
+    }
+}
+
+void HookPlayLayer::savePersistentLearnMode() {
+    auto fields = m_fields.self();
+    if (fields->m_learnModeSaveKey.empty()) {
+        fields->m_learnModeSaveKey = getLearnModeSaveKey();
+    }
+    if (fields->m_learnModeSaveKey.empty()) {
+        return;
+    }
+
+    fields->m_hasPersistentLearnModeState = true;
+    fields->m_learnResumeStartPosIdx = fields->m_pendingStartPosIdx >= 0 ? fields->m_pendingStartPosIdx : fields->m_startPosIdx;
+
+    LearnModeProgress progress;
+    progress.m_enabled = fields->m_learnModeEnabled;
+    progress.m_stage = fields->m_learnStage;
+    progress.m_resumeStartPosIdx = fields->m_learnResumeStartPosIdx;
+    progress.m_passedRuns.reserve(fields->m_learnPassedRuns.size());
+    for (auto passedRun : fields->m_learnPassedRuns) {
+        progress.m_passedRuns.push_back(passedRun ? 1 : 0);
+    }
+
+    Mod::get()->setSavedValue(fields->m_learnModeSaveKey, progress);
 }
 
 void HookPlayLayer::rebuildRunStats() {
@@ -367,6 +481,7 @@ void HookPlayLayer::rebuildRunStats() {
     }
 
     loadPersistentRunStats();
+    loadPersistentLearnMode();
 }
 
 void HookPlayLayer::resetActiveRunTracking() {
@@ -402,7 +517,7 @@ void HookPlayLayer::markRunPass(int runIndex) {
     fields->m_activeRunPassed = true;
     fields->m_runStats[runIndex].m_clears += 1;
     savePersistentRunStats();
-    dashcoach::learn_mode::onRunPassed(this);
+    dashcoach::learn_mode::onRunPassed(this, runIndex);
 }
 
 void HookPlayLayer::recordBestReach(int runIndex, float percent) {

@@ -4,6 +4,7 @@
 #include "modes/LearnMode.hpp"
 #include "UILayer.hpp"
 
+#include <Geode/binding/FMODAudioEngine.hpp>
 #include <Geode/binding/StartPosObject.hpp>
 
 #include <algorithm>
@@ -101,6 +102,39 @@ namespace {
         }
         return hash;
     }
+
+    unsigned int getStartPosMusicTimeMS(HookPlayLayer* playLayer, StartPosObject* startPos) {
+        if (!playLayer || !startPos || !startPos->m_startSettings) {
+            return 0;
+        }
+
+        auto const startTime = playLayer->timeForPos(
+            startPos->getPosition(),
+            startPos->m_startSettings->m_targetOrder,
+            startPos->m_startSettings->m_targetChannel,
+            true,
+            startPos->m_uniqueID
+        );
+        auto const songTime = std::max(startTime + startPos->m_startSettings->m_songOffset, 0.f);
+        return static_cast<unsigned int>(std::lround(songTime * 1000.f));
+    }
+
+    void syncMusicToCurrentStartPos(HookPlayLayer* playLayer) {
+        if (!playLayer) {
+            return;
+        }
+
+        auto* startPosObject = static_cast<StartPosObject*>(playLayer->m_startPosObject);
+        if (!startPosObject) {
+            return;
+        }
+
+        FMODAudioEngine::sharedEngine()->setMusicTimeMS(
+            getStartPosMusicTimeMS(playLayer, startPosObject),
+            true,
+            0
+        );
+    }
 }
 
 void HookPlayLayer::addObject(GameObject* obj) {
@@ -122,6 +156,7 @@ void HookPlayLayer::updateStartPos(int idx) {
     }
 
     setSelectedStartPos(idx);
+    auto* startPosObject = static_cast<StartPosObject*>(m_startPosObject);
 
     if (m_isPracticeMode) {
         resetLevelFromStart();
@@ -129,6 +164,9 @@ void HookPlayLayer::updateStartPos(int idx) {
 
     resetLevel();
     startMusic();
+    if (startPosObject) {
+        syncMusicToCurrentStartPos(this);
+    }
 
     if (auto* uiLayer = typeinfo_cast<UILayer*>(m_uiLayer)) {
         static_cast<HookUILayer*>(uiLayer)->updateUI();
@@ -181,9 +219,15 @@ void HookPlayLayer::createObjectsFromSetupFinished() {
 }
 
 void HookPlayLayer::resetLevel() {
-    dashcoach::learn_mode::applyPendingStartPos(this);
+    auto* previousStartPosObject = m_startPosObject;
+    flukology::learn_mode::applyPendingStartPos(this);
+    auto const startPosChanged = previousStartPosObject != m_startPosObject;
 
     PlayLayer::resetLevel();
+    if (startPosChanged) {
+        startMusic();
+    }
+    syncMusicToCurrentStartPos(this);
     resetActiveRunTracking();
 
     if (auto* uiLayer = typeinfo_cast<UILayer*>(m_uiLayer)) {
@@ -243,7 +287,7 @@ void HookPlayLayer::destroyPlayer(PlayerObject* player, GameObject* object) {
                 fields->m_runStats[deathRunIndex].m_deathPercents.push_back(roundedPercent(deathPercent));
                 savePersistentRunStats();
             }
-            dashcoach::learn_mode::onDeath(this, deathPercent);
+            flukology::learn_mode::onDeath(this, deathPercent);
             resetActiveRunTracking();
         }
     }
@@ -262,7 +306,7 @@ void HookPlayLayer::levelComplete() {
         markRunAttempt(runIndex);
         recordBestReach(runIndex, 100.f);
         markRunPass(runIndex);
-        dashcoach::learn_mode::onLevelComplete(this);
+        flukology::learn_mode::onLevelComplete(this);
         resetActiveRunTracking();
     }
 
@@ -517,7 +561,7 @@ void HookPlayLayer::markRunPass(int runIndex) {
     fields->m_activeRunPassed = true;
     fields->m_runStats[runIndex].m_clears += 1;
     savePersistentRunStats();
-    dashcoach::learn_mode::onRunPassed(this, runIndex);
+    flukology::learn_mode::onRunPassed(this, runIndex);
 }
 
 void HookPlayLayer::recordBestReach(int runIndex, float percent) {

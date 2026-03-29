@@ -6,11 +6,11 @@
 		"mac": "2.2081",
 		"ios": "2.2081"
 	},
-	"id": "mineralwater.dashcoach",
-	"name": "DashCoach",
+	"id": "mineralwater.flukology",
+	"name": "Flukology",
 	"version": "v1.0.0",
 	"developer": "mineralwater",
-	"description": "DashCoach base mod with startpos switching and a placeholder pause-menu button.",
+	"description": "Flukology base mod with startpos switching and a placeholder pause-menu button.",
 	"dependencies": {
 		"geode.node-ids": ">=v1.20.0"
 	},

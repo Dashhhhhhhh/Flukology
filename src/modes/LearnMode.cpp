@@ -117,7 +117,7 @@ namespace {
     }
 }
 
-namespace dashcoach::learn_mode {
+namespace flukology::learn_mode {
     void applyPendingStartPos(HookPlayLayer* playLayer) {
         if (!playLayer) {
             return;

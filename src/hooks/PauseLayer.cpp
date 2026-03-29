@@ -149,7 +149,7 @@ namespace {
         return row;
     }
 
-    class DashCoachStatsPopup final : public Popup {
+    class FlukologyStatsPopup final : public Popup {
     protected:
         std::vector<RunStats> m_runStats;
 
@@ -159,7 +159,7 @@ namespace {
             }
 
             m_runStats = std::move(runStats);
-            setTitle("DashCoach Runs");
+            setTitle("Flukology Runs");
 
             auto subtitle = CCLabelBMFont::create("Saved section stats for this level", "chatFont.fnt");
             subtitle->setScale(0.7f);
@@ -198,8 +198,8 @@ namespace {
         }
 
     public:
-        static DashCoachStatsPopup* create(std::vector<RunStats> runStats) {
-            auto* popup = new DashCoachStatsPopup();
+        static FlukologyStatsPopup* create(std::vector<RunStats> runStats) {
+            auto* popup = new FlukologyStatsPopup();
             if (popup->init(std::move(runStats))) {
                 popup->autorelease();
                 return popup;
@@ -210,7 +210,7 @@ namespace {
         }
     };
 
-    class DashCoachModesPopup final : public Popup {
+    class FlukologyModesPopup final : public Popup {
     protected:
         bool init() {
             if (!Popup::init(220.f, 150.f)) {
@@ -219,7 +219,7 @@ namespace {
 
             setTitle("Modes");
 
-            auto subtitle = CCLabelBMFont::create("Choose a DashCoach mode", "chatFont.fnt");
+            auto subtitle = CCLabelBMFont::create("Choose a Flukology mode", "chatFont.fnt");
             subtitle->setScale(0.7f);
             m_mainLayer->addChildAtPosition(subtitle, Anchor::Top, ccp(0.f, -40.f));
 
@@ -240,7 +240,7 @@ namespace {
                     onClose(nullptr);
                 }
             );
-            learnButton->setID("dashcoach-modes-learn-button"_spr);
+            learnButton->setID("flukology-modes-learn-button"_spr);
             buttonMenu->addChild(learnButton);
             buttonMenu->updateLayout();
 
@@ -248,8 +248,8 @@ namespace {
         }
 
     public:
-        static DashCoachModesPopup* create() {
-            auto* popup = new DashCoachModesPopup();
+        static FlukologyModesPopup* create() {
+            auto* popup = new FlukologyModesPopup();
             if (popup->init()) {
                 popup->autorelease();
                 return popup;
@@ -260,7 +260,7 @@ namespace {
         }
     };
 
-    class DashCoachMenuPopup final : public Popup {
+    class FlukologyMenuPopup final : public Popup {
     protected:
         std::vector<RunStats> m_runStats;
 
@@ -270,9 +270,9 @@ namespace {
             }
 
             m_runStats = std::move(runStats);
-            setTitle("DashCoach");
+            setTitle("Flukology");
 
-            auto subtitle = CCLabelBMFont::create("Choose a DashCoach tool", "chatFont.fnt");
+            auto subtitle = CCLabelBMFont::create("Choose a Flukology tool", "chatFont.fnt");
             subtitle->setScale(0.7f);
             m_mainLayer->addChildAtPosition(subtitle, Anchor::Top, ccp(0.f, -40.f));
 
@@ -284,19 +284,19 @@ namespace {
             auto statsButton = CCMenuItemExt::createSpriteExtra(
                 ButtonSprite::create("Stats"),
                 [runStats = m_runStats](CCObject*) mutable {
-                    DashCoachStatsPopup::create(std::move(runStats))->show();
+                    FlukologyStatsPopup::create(std::move(runStats))->show();
                 }
             );
-            statsButton->setID("dashcoach-stats-button"_spr);
+            statsButton->setID("flukology-stats-button"_spr);
             buttonMenu->addChild(statsButton);
 
             auto modesButton = CCMenuItemExt::createSpriteExtra(
                 ButtonSprite::create("Modes"),
                 [](CCObject*) {
-                    DashCoachModesPopup::create()->show();
+                    FlukologyModesPopup::create()->show();
                 }
             );
-            modesButton->setID("dashcoach-modes-button"_spr);
+            modesButton->setID("flukology-modes-button"_spr);
             buttonMenu->addChild(modesButton);
 
             buttonMenu->updateLayout();
@@ -305,8 +305,8 @@ namespace {
         }
 
     public:
-        static DashCoachMenuPopup* create(std::vector<RunStats> runStats) {
-            auto* popup = new DashCoachMenuPopup();
+        static FlukologyMenuPopup* create(std::vector<RunStats> runStats) {
+            auto* popup = new FlukologyMenuPopup();
             if (popup->init(std::move(runStats))) {
                 popup->autorelease();
                 return popup;
@@ -324,17 +324,17 @@ void HookPauseLayer::customSetup() {
     auto winSize = CCDirector::sharedDirector()->getWinSize();
 
     auto menu = CCMenu::create();
-    menu->setID("dashcoach-pause-menu"_spr);
+    menu->setID("flukology-pause-menu"_spr);
     menu->setPosition(winSize.width / 2.f, 72.f);
 
-    auto buttonSprite = ButtonSprite::create("DashCoach");
+    auto buttonSprite = ButtonSprite::create("Flukology");
     auto button = CCMenuItemExt::createSpriteExtra(buttonSprite, [](CCObject*) {
         if (auto* playLayer = static_cast<HookPlayLayer*>(PlayLayer::get())) {
-            DashCoachMenuPopup::create(playLayer->getRunStats())->show();
+            FlukologyMenuPopup::create(playLayer->getRunStats())->show();
         }
     });
 
-    button->setID("dashcoach-button"_spr);
+    button->setID("flukology-button"_spr);
     menu->addChild(button);
     this->addChild(menu);
 }

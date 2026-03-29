@@ -18,6 +18,7 @@ struct HookPlayLayer : geode::Modify<HookPlayLayer, PlayLayer> {
         std::vector<RunStats> m_runStats;
         int m_startPosIdx = 0;
         int m_activeRunIdx = -1;
+        bool m_activeRunPassed = false;
     };
 
     void addObject(GameObject* obj);
@@ -30,8 +31,10 @@ struct HookPlayLayer : geode::Modify<HookPlayLayer, PlayLayer> {
 
     std::vector<RunStats> const& getRunStats();
     int findRunIndexForPercent(float percent);
+    int getSelectedRunIndex();
     void rebuildRunStats();
     void resetActiveRunTracking();
     void markRunAttempt(int runIndex);
+    void markRunPass(int runIndex);
     void recordBestReach(int runIndex, float percent);
 };

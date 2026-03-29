@@ -106,10 +106,23 @@ void HookPlayLayer::postUpdate(float dt) {
         return;
     }
 
+    auto runIndex = fields->m_activeRunIdx;
+    if (runIndex < 0) {
+        runIndex = getSelectedRunIndex();
+    }
+
     auto currentPercent = clampPercent(getCurrentPercent());
-    auto runIndex = findRunIndexForPercent(currentPercent);
     markRunAttempt(runIndex);
     recordBestReach(runIndex, currentPercent);
+
+    if (
+        runIndex >= 0 &&
+        runIndex < static_cast<int>(fields->m_runStats.size()) &&
+        !fields->m_activeRunPassed &&
+        currentPercent + 0.001f >= fields->m_runStats[runIndex].m_endPercent
+    ) {
+        markRunPass(runIndex);
+    }
 }
 
 void HookPlayLayer::destroyPlayer(PlayerObject* player, GameObject* object) {
@@ -117,10 +130,25 @@ void HookPlayLayer::destroyPlayer(PlayerObject* player, GameObject* object) {
         auto fields = m_fields.self();
         if (!fields->m_runStats.empty()) {
             auto deathPercent = clampPercent(getCurrentPercent());
-            auto runIndex = findRunIndexForPercent(deathPercent);
-            markRunAttempt(runIndex);
-            recordBestReach(runIndex, deathPercent);
-            fields->m_runStats[runIndex].m_deathPercents.push_back(roundedPercent(deathPercent));
+            auto activeRunIndex = fields->m_activeRunIdx;
+            if (activeRunIndex < 0) {
+                activeRunIndex = getSelectedRunIndex();
+            }
+
+            markRunAttempt(activeRunIndex);
+            recordBestReach(activeRunIndex, deathPercent);
+            if (
+                activeRunIndex >= 0 &&
+                activeRunIndex < static_cast<int>(fields->m_runStats.size()) &&
+                deathPercent + 0.001f >= fields->m_runStats[activeRunIndex].m_endPercent
+            ) {
+                markRunPass(activeRunIndex);
+            }
+
+            auto deathRunIndex = findRunIndexForPercent(deathPercent);
+            if (deathRunIndex >= 0 && deathRunIndex < static_cast<int>(fields->m_runStats.size())) {
+                fields->m_runStats[deathRunIndex].m_deathPercents.push_back(roundedPercent(deathPercent));
+            }
             resetActiveRunTracking();
         }
     }
@@ -131,10 +159,14 @@ void HookPlayLayer::destroyPlayer(PlayerObject* player, GameObject* object) {
 void HookPlayLayer::levelComplete() {
     auto fields = m_fields.self();
     if (!fields->m_runStats.empty()) {
-        auto finalRunIndex = static_cast<int>(fields->m_runStats.size()) - 1;
-        markRunAttempt(finalRunIndex);
-        recordBestReach(finalRunIndex, 100.f);
-        fields->m_runStats[finalRunIndex].m_clears += 1;
+        auto runIndex = fields->m_activeRunIdx;
+        if (runIndex < 0) {
+            runIndex = getSelectedRunIndex();
+        }
+
+        markRunAttempt(runIndex);
+        recordBestReach(runIndex, 100.f);
+        markRunPass(runIndex);
         resetActiveRunTracking();
     }
 
@@ -159,6 +191,20 @@ int HookPlayLayer::findRunIndexForPercent(float percent) {
     }
 
     return 0;
+}
+
+int HookPlayLayer::getSelectedRunIndex() {
+    auto fields = m_fields.self();
+    if (fields->m_runStats.empty()) {
+        return -1;
+    }
+
+    if (fields->m_startPosIdx <= 0) {
+        return 0;
+    }
+
+    auto selectedRunIndex = std::min(fields->m_startPosIdx, static_cast<int>(fields->m_runStats.size()) - 1);
+    return std::max(selectedRunIndex, 0);
 }
 
 void HookPlayLayer::rebuildRunStats() {
@@ -203,7 +249,9 @@ void HookPlayLayer::rebuildRunStats() {
 }
 
 void HookPlayLayer::resetActiveRunTracking() {
-    m_fields->m_activeRunIdx = -1;
+    auto fields = m_fields.self();
+    fields->m_activeRunIdx = -1;
+    fields->m_activeRunPassed = false;
 }
 
 void HookPlayLayer::markRunAttempt(int runIndex) {
@@ -217,9 +265,20 @@ void HookPlayLayer::markRunAttempt(int runIndex) {
     }
 
     fields->m_activeRunIdx = runIndex;
+    fields->m_activeRunPassed = false;
     auto& runStats = fields->m_runStats[runIndex];
     runStats.m_attempts += 1;
     runStats.m_bestReach = std::max(runStats.m_bestReach, runStats.m_startPercent);
+}
+
+void HookPlayLayer::markRunPass(int runIndex) {
+    auto fields = m_fields.self();
+    if (runIndex < 0 || runIndex >= static_cast<int>(fields->m_runStats.size()) || fields->m_activeRunPassed) {
+        return;
+    }
+
+    fields->m_activeRunPassed = true;
+    fields->m_runStats[runIndex].m_clears += 1;
 }
 
 void HookPlayLayer::recordBestReach(int runIndex, float percent) {

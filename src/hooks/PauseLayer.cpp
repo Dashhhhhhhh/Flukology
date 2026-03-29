@@ -161,7 +161,7 @@ namespace {
             m_runStats = std::move(runStats);
             setTitle("DashCoach Runs");
 
-            auto subtitle = CCLabelBMFont::create("Current session section stats", "chatFont.fnt");
+            auto subtitle = CCLabelBMFont::create("Saved section stats for this level", "chatFont.fnt");
             subtitle->setScale(0.7f);
             m_mainLayer->addChildAtPosition(subtitle, Anchor::Top, ccp(0.f, -38.f));
 

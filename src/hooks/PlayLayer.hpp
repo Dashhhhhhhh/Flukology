@@ -16,6 +16,7 @@ struct HookPlayLayer : geode::Modify<HookPlayLayer, PlayLayer> {
     struct Fields {
         std::vector<geode::Ref<GameObject>> m_startPosObjects;
         std::vector<RunStats> m_runStats;
+        std::string m_runStatsSaveKey;
         int m_startPosIdx = 0;
         int m_activeRunIdx = -1;
         bool m_activeRunPassed = false;
@@ -39,6 +40,9 @@ struct HookPlayLayer : geode::Modify<HookPlayLayer, PlayLayer> {
     bool isLearnModeEnabled();
     void toggleLearnMode();
     void setLearnModeEnabled(bool enabled);
+    std::string getRunStatsSaveKey();
+    void loadPersistentRunStats();
+    void savePersistentRunStats();
     void rebuildRunStats();
     void resetActiveRunTracking();
     void markRunAttempt(int runIndex);

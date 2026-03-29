@@ -10,7 +10,7 @@
 	"name": "Flukology",
 	"version": "v1.0.0",
 	"developer": "mineralwater",
-	"description": "Flukology base mod with startpos switching and a placeholder pause-menu button.",
+	"description": "Practice-focused startpos switching and learn-mode tools for Geometry Dash.",
 	"dependencies": {
 		"geode.node-ids": ">=v1.20.0"
 	},

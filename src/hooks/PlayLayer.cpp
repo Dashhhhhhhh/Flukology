@@ -40,6 +40,25 @@ void HookPlayLayer::updateStartPos(int idx) {
         return;
     }
 
+    setSelectedStartPos(idx);
+
+    if (m_isPracticeMode) {
+        resetLevelFromStart();
+    }
+
+    resetLevel();
+    startMusic();
+
+    if (auto* uiLayer = typeinfo_cast<UILayer*>(m_uiLayer)) {
+        static_cast<HookUILayer*>(uiLayer)->updateUI();
+    }
+
+    resetActiveRunTracking();
+}
+
+void HookPlayLayer::setSelectedStartPos(int idx) {
+    auto fields = m_fields.self();
+
     if (idx < 0) {
         idx = static_cast<int>(fields->m_startPosObjects.size());
     }
@@ -55,19 +74,6 @@ void HookPlayLayer::updateStartPos(int idx) {
 
     auto* object = idx > 0 ? fields->m_startPosObjects[idx - 1].data() : nullptr;
     setStartPosObject(static_cast<StartPosObject*>(object));
-
-    if (m_isPracticeMode) {
-        resetLevelFromStart();
-    }
-
-    resetLevel();
-    startMusic();
-
-    if (auto* uiLayer = typeinfo_cast<UILayer*>(m_uiLayer)) {
-        static_cast<HookUILayer*>(uiLayer)->updateUI();
-    }
-
-    resetActiveRunTracking();
 }
 
 void HookPlayLayer::createObjectsFromSetupFinished() {
@@ -94,8 +100,18 @@ void HookPlayLayer::createObjectsFromSetupFinished() {
 }
 
 void HookPlayLayer::resetLevel() {
+    auto fields = m_fields.self();
+    if (fields->m_pendingStartPosIdx >= 0) {
+        setSelectedStartPos(fields->m_pendingStartPosIdx);
+        fields->m_pendingStartPosIdx = -1;
+    }
+
     PlayLayer::resetLevel();
     resetActiveRunTracking();
+
+    if (auto* uiLayer = typeinfo_cast<UILayer*>(m_uiLayer)) {
+        static_cast<HookUILayer*>(uiLayer)->updateUI();
+    }
 }
 
 void HookPlayLayer::postUpdate(float dt) {
@@ -149,6 +165,7 @@ void HookPlayLayer::destroyPlayer(PlayerObject* player, GameObject* object) {
             if (deathRunIndex >= 0 && deathRunIndex < static_cast<int>(fields->m_runStats.size())) {
                 fields->m_runStats[deathRunIndex].m_deathPercents.push_back(roundedPercent(deathPercent));
             }
+            queuePreviousLearnStartPos();
             resetActiveRunTracking();
         }
     }
@@ -167,6 +184,7 @@ void HookPlayLayer::levelComplete() {
         markRunAttempt(runIndex);
         recordBestReach(runIndex, 100.f);
         markRunPass(runIndex);
+        queuePreviousLearnStartPos();
         resetActiveRunTracking();
     }
 
@@ -205,6 +223,29 @@ int HookPlayLayer::getSelectedRunIndex() {
 
     auto selectedRunIndex = std::min(fields->m_startPosIdx, static_cast<int>(fields->m_runStats.size()) - 1);
     return std::max(selectedRunIndex, 0);
+}
+
+bool HookPlayLayer::isLearnModeEnabled() {
+    return m_fields->m_learnModeEnabled;
+}
+
+void HookPlayLayer::toggleLearnMode() {
+    setLearnModeEnabled(!m_fields->m_learnModeEnabled);
+}
+
+void HookPlayLayer::setLearnModeEnabled(bool enabled) {
+    auto fields = m_fields.self();
+    fields->m_learnModeEnabled = enabled;
+    fields->m_learnAdvancePending = false;
+    fields->m_pendingStartPosIdx = -1;
+
+    if (enabled && !fields->m_startPosObjects.empty()) {
+        updateStartPos(static_cast<int>(fields->m_startPosObjects.size()));
+    }
+
+    if (auto* uiLayer = typeinfo_cast<UILayer*>(m_uiLayer)) {
+        static_cast<HookUILayer*>(uiLayer)->updateUI();
+    }
 }
 
 void HookPlayLayer::rebuildRunStats() {
@@ -279,6 +320,19 @@ void HookPlayLayer::markRunPass(int runIndex) {
 
     fields->m_activeRunPassed = true;
     fields->m_runStats[runIndex].m_clears += 1;
+    if (fields->m_learnModeEnabled) {
+        fields->m_learnAdvancePending = true;
+    }
+}
+
+void HookPlayLayer::queuePreviousLearnStartPos() {
+    auto fields = m_fields.self();
+    if (!fields->m_learnModeEnabled || !fields->m_learnAdvancePending) {
+        return;
+    }
+
+    fields->m_learnAdvancePending = false;
+    fields->m_pendingStartPosIdx = std::max(fields->m_startPosIdx - 1, 0);
 }
 
 void HookPlayLayer::recordBestReach(int runIndex, float percent) {

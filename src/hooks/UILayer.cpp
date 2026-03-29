@@ -32,12 +32,18 @@ bool HookUILayer::init(GJBaseGameLayer* baseGame) {
 
         fields->m_nextSwitcherBtn = CCMenuItemExt::createSpriteExtra(nextSprite, [this](CCObject*) {
             auto* layer = static_cast<HookPlayLayer*>(PlayLayer::get());
+            if (layer->isLearnModeEnabled()) {
+                return;
+            }
             layer->updateStartPos(layer->m_fields->m_startPosIdx + 1);
         });
         fields->m_nextSwitcherBtn->setID("startpos-next-button"_spr);
 
         fields->m_prevSwitcherBtn = CCMenuItemExt::createSpriteExtra(prevSprite, [this](CCObject*) {
             auto* layer = static_cast<HookPlayLayer*>(PlayLayer::get());
+            if (layer->isLearnModeEnabled()) {
+                return;
+            }
             layer->updateStartPos(layer->m_fields->m_startPosIdx - 1);
         });
         fields->m_prevSwitcherBtn->setID("startpos-prev-button"_spr);
@@ -55,6 +61,9 @@ bool HookUILayer::init(GJBaseGameLayer* baseGame) {
         addEventListener(KeybindSettingPressedEventV3(GEODE_MOD_ID, "leftSwitch"), [](const Keybind&, bool down, bool repeat, double) {
             if (down && !repeat) {
                 auto* layer = static_cast<HookPlayLayer*>(PlayLayer::get());
+                if (layer->isLearnModeEnabled()) {
+                    return;
+                }
                 layer->updateStartPos(layer->m_fields->m_startPosIdx - 1);
             }
         });
@@ -62,6 +71,9 @@ bool HookUILayer::init(GJBaseGameLayer* baseGame) {
         addEventListener(KeybindSettingPressedEventV3(GEODE_MOD_ID, "rightSwitch"), [](const Keybind&, bool down, bool repeat, double) {
             if (down && !repeat) {
                 auto* layer = static_cast<HookPlayLayer*>(PlayLayer::get());
+                if (layer->isLearnModeEnabled()) {
+                    return;
+                }
                 layer->updateStartPos(layer->m_fields->m_startPosIdx + 1);
             }
         });
@@ -89,6 +101,9 @@ void HookUILayer::updateUI() {
     fields->m_switcherMenu->setVisible(true);
     fields->m_switcherLabel->setString(fmt::format("{}/{}", playLayer->m_fields->m_startPosIdx, playLayer->m_fields->m_startPosObjects.size()).c_str());
     fields->m_switcherLabel->limitLabelWidth(40.f, 0.6f, 0.f);
+    auto hideSwitchButtons = manager->m_hideBtns || playLayer->isLearnModeEnabled();
+    fields->m_prevSwitcherBtn->setVisible(!hideSwitchButtons);
+    fields->m_nextSwitcherBtn->setVisible(!hideSwitchButtons);
 
     fields->m_switcherMenu->stopActionByTag(676767677);
     if (fields->m_firstUpdate && manager->m_dontFadeOnStart) {

@@ -15,7 +15,7 @@ struct RunStats {
 enum class LearnModeStage {
     SectionRuns,
     CompletionBacktrack,
-    RecoveryLoop,
+    StartposPractice,
 };
 
 struct LearnModeProgress {
@@ -57,6 +57,12 @@ struct HookPlayLayer : geode::Modify<HookPlayLayer, PlayLayer> {
     bool isLearnModeEnabled();
     void toggleLearnMode();
     void setLearnModeEnabled(bool enabled);
+    bool isStartposPracticeModeEnabled();
+    void toggleStartposPracticeMode();
+    void setStartposPracticeModeEnabled(bool enabled);
+    float getStartposPracticeThreshold();
+    void setStartposPracticeThreshold(float threshold);
+    bool isLearnModeInStartposPracticeStage();
     std::string getRunStatsSaveKey();
     void loadPersistentRunStats();
     void savePersistentRunStats();

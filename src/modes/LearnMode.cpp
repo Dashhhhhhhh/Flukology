@@ -1,5 +1,6 @@
 #include "LearnMode.hpp"
 
+#include "../ModManager.hpp"
 #include "hooks/PlayLayer.hpp"
 #include "hooks/UILayer.hpp"
 
@@ -10,7 +11,6 @@ using namespace geode::prelude;
 
 namespace {
     constexpr float kLearnPercentEpsilon = 0.001f;
-    constexpr float kRecoveryFallbackMinPercent = 30.f;
 
     float getStartPosPercent(HookPlayLayer* playLayer, int startPosIdx) {
         if (!playLayer || startPosIdx <= 0) {
@@ -58,13 +58,13 @@ namespace {
         });
     }
 
-    void startRecoveryLoop(HookPlayLayer* playLayer) {
+    void startStartposPracticePhase(HookPlayLayer* playLayer) {
         if (!playLayer) {
             return;
         }
 
         auto fields = playLayer->m_fields.self();
-        fields->m_learnStage = LearnModeStage::RecoveryLoop;
+        fields->m_learnStage = LearnModeStage::StartposPractice;
         fields->m_pendingStartPosIdx = 0;
         playLayer->savePersistentLearnMode();
     }
@@ -77,7 +77,7 @@ namespace {
         auto fields = playLayer->m_fields.self();
         auto const secondToLastStartPosIdx = getSecondToLastStartPosIdx(playLayer);
         if (secondToLastStartPosIdx <= 0 || isStartPosBefore50(playLayer, secondToLastStartPosIdx)) {
-            startRecoveryLoop(playLayer);
+            startStartposPracticePhase(playLayer);
             return;
         }
 
@@ -107,13 +107,23 @@ namespace {
         return selectedIdx;
     }
 
-    int getRecoveryStartPosAfterDeath(HookPlayLayer* playLayer, float percent) {
-        auto const fallbackIdx = getStartPosBeforePercent(playLayer, percent);
-        if (getStartPosPercent(playLayer, fallbackIdx) >= kRecoveryFallbackMinPercent - kLearnPercentEpsilon) {
-            return fallbackIdx;
+    bool shouldApplyStartposPractice(HookPlayLayer* playLayer, float deathPercent) {
+        if (!playLayer) {
+            return false;
         }
 
-        return 0;
+        auto const learnPhaseActive = playLayer->isLearnModeInStartposPracticeStage();
+        auto const standaloneModeActive = !playLayer->isLearnModeEnabled() && playLayer->isStartposPracticeModeEnabled();
+        if (!learnPhaseActive && !standaloneModeActive) {
+            return false;
+        }
+
+        auto const currentStartPosIdx = playLayer->m_fields->m_startPosIdx;
+        if (currentStartPosIdx > 0) {
+            return true;
+        }
+
+        return deathPercent + kLearnPercentEpsilon >= playLayer->getStartposPracticeThreshold();
     }
 }
 
@@ -129,9 +139,11 @@ namespace flukology::learn_mode {
         }
 
         playLayer->setSelectedStartPos(fields->m_pendingStartPosIdx);
-        fields->m_learnResumeStartPosIdx = fields->m_pendingStartPosIdx;
         fields->m_pendingStartPosIdx = -1;
-        playLayer->savePersistentLearnMode();
+        if (fields->m_learnModeEnabled) {
+            fields->m_learnResumeStartPosIdx = playLayer->m_fields->m_startPosIdx;
+            playLayer->savePersistentLearnMode();
+        }
     }
 
     void onRunPassed(HookPlayLayer* playLayer, int runIndex) {
@@ -167,11 +179,7 @@ namespace flukology::learn_mode {
         }
 
         auto fields = playLayer->m_fields.self();
-        if (!fields->m_learnModeEnabled) {
-            return;
-        }
-
-        if (fields->m_learnStage == LearnModeStage::CompletionBacktrack) {
+        if (fields->m_learnModeEnabled && fields->m_learnStage == LearnModeStage::CompletionBacktrack) {
             if (fields->m_pendingStartPosIdx >= 0) {
                 return;
             }
@@ -180,8 +188,12 @@ namespace flukology::learn_mode {
             return;
         }
 
-        if (fields->m_learnStage == LearnModeStage::RecoveryLoop) {
-            fields->m_pendingStartPosIdx = getRecoveryStartPosAfterDeath(playLayer, deathPercent);
+        if (!shouldApplyStartposPractice(playLayer, deathPercent)) {
+            return;
+        }
+
+        fields->m_pendingStartPosIdx = getStartPosBeforePercent(playLayer, deathPercent);
+        if (fields->m_learnModeEnabled) {
             playLayer->savePersistentLearnMode();
         }
     }
@@ -192,14 +204,10 @@ namespace flukology::learn_mode {
         }
 
         auto fields = playLayer->m_fields.self();
-        if (!fields->m_learnModeEnabled) {
-            return;
-        }
-
-        if (fields->m_learnStage == LearnModeStage::CompletionBacktrack) {
+        if (fields->m_learnModeEnabled && fields->m_learnStage == LearnModeStage::CompletionBacktrack) {
             auto const previousStartPosIdx = std::max(fields->m_startPosIdx - 1, 0);
             if (previousStartPosIdx <= 0 || isStartPosBefore50(playLayer, previousStartPosIdx)) {
-                startRecoveryLoop(playLayer);
+                startStartposPracticePhase(playLayer);
                 return;
             }
 
@@ -208,9 +216,14 @@ namespace flukology::learn_mode {
             return;
         }
 
-        if (fields->m_learnStage == LearnModeStage::RecoveryLoop) {
+        if (fields->m_learnModeEnabled && fields->m_learnStage == LearnModeStage::StartposPractice) {
             fields->m_pendingStartPosIdx = 0;
             playLayer->savePersistentLearnMode();
+            return;
+        }
+
+        if (!fields->m_learnModeEnabled && playLayer->isStartposPracticeModeEnabled() && fields->m_startPosIdx > 0) {
+            fields->m_pendingStartPosIdx = 0;
         }
     }
 }
@@ -252,4 +265,28 @@ void HookPlayLayer::setLearnModeEnabled(bool enabled) {
     if (auto* uiLayer = typeinfo_cast<UILayer*>(m_uiLayer)) {
         static_cast<HookUILayer*>(uiLayer)->updateUI();
     }
+}
+
+bool HookPlayLayer::isStartposPracticeModeEnabled() {
+    return ModManager::sharedState()->isStartposPracticeEnabled();
+}
+
+void HookPlayLayer::toggleStartposPracticeMode() {
+    setStartposPracticeModeEnabled(!isStartposPracticeModeEnabled());
+}
+
+void HookPlayLayer::setStartposPracticeModeEnabled(bool enabled) {
+    ModManager::sharedState()->setStartposPracticeEnabled(enabled);
+}
+
+float HookPlayLayer::getStartposPracticeThreshold() {
+    return ModManager::sharedState()->getStartposPracticeThreshold();
+}
+
+void HookPlayLayer::setStartposPracticeThreshold(float threshold) {
+    ModManager::sharedState()->setStartposPracticeThreshold(threshold);
+}
+
+bool HookPlayLayer::isLearnModeInStartposPracticeStage() {
+    return m_fields->m_learnModeEnabled && m_fields->m_learnStage == LearnModeStage::StartposPractice;
 }

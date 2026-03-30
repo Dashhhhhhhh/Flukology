@@ -72,7 +72,7 @@ namespace matjson {
             progress.m_stage = static_cast<LearnModeStage>(std::clamp(
                 stageValue,
                 static_cast<int>(LearnModeStage::SectionRuns),
-                static_cast<int>(LearnModeStage::RecoveryLoop)
+                static_cast<int>(LearnModeStage::StartposPractice)
             ));
             progress.m_passedRuns = std::move(passedRuns);
             progress.m_resumeStartPosIdx = resumeStartPosIdx;

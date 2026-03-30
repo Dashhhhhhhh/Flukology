@@ -2,13 +2,16 @@
 
 #include "PlayLayer.hpp"
 
+#include <Geode/binding/CCMenuItemToggler.hpp>
 #include <Geode/ui/Popup.hpp>
 #include <Geode/ui/ScrollLayer.hpp>
 #include <Geode/ui/Scrollbar.hpp>
 #include <Geode/ui/TextArea.hpp>
+#include <Geode/ui/TextInput.hpp>
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <optional>
 
 using namespace geode::prelude;
@@ -21,6 +24,29 @@ namespace {
 
     int displayPercent(float percent) {
         return static_cast<int>(std::lround(std::clamp(percent, 0.f, 100.f)));
+    }
+
+    std::string formatThresholdValue(float threshold) {
+        auto const clampedThreshold = std::clamp(threshold, 0.f, 100.f);
+        if (std::abs(clampedThreshold - std::round(clampedThreshold)) < 0.001f) {
+            return fmt::format("{}", static_cast<int>(std::lround(clampedThreshold)));
+        }
+
+        return fmt::format("{:.1f}", clampedThreshold);
+    }
+
+    std::optional<float> parseThresholdValue(std::string const& value) {
+        if (value.empty()) {
+            return std::nullopt;
+        }
+
+        char* parseEnd = nullptr;
+        auto const parsedValue = std::strtof(value.c_str(), &parseEnd);
+        if (parseEnd == value.c_str() || (parseEnd && *parseEnd != '\0') || !std::isfinite(parsedValue)) {
+            return std::nullopt;
+        }
+
+        return std::clamp(parsedValue, 0.f, 100.f);
     }
 
     std::string formatRangeLabel(RunStats const& runStats) {
@@ -212,37 +238,148 @@ namespace {
 
     class FlukologyModesPopup final : public Popup {
     protected:
+        TextInput* m_thresholdInput = nullptr;
+        CCMenuItemToggler* m_learnToggle = nullptr;
+        CCMenuItemToggler* m_useLastStartposToggle = nullptr;
+
+        void refreshModeToggles() {
+            auto* playLayer = static_cast<HookPlayLayer*>(PlayLayer::get());
+            if (!playLayer) {
+                return;
+            }
+
+            if (m_learnToggle) {
+                m_learnToggle->toggle(playLayer->isLearnModeEnabled());
+            }
+
+            if (m_useLastStartposToggle) {
+                m_useLastStartposToggle->toggle(playLayer->isStartposPracticeModeEnabled());
+            }
+        }
+
         bool init() {
-            if (!Popup::init(220.f, 150.f)) {
+            if (!Popup::init(330.f, 250.f)) {
                 return false;
             }
 
             setTitle("Modes");
 
-            auto subtitle = CCLabelBMFont::create("Choose a Flukology mode", "chatFont.fnt");
+            auto subtitle = CCLabelBMFont::create("Practice helpers for this level", "chatFont.fnt");
             subtitle->setScale(0.7f);
             m_mainLayer->addChildAtPosition(subtitle, Anchor::Top, ccp(0.f, -40.f));
 
-            auto buttonMenu = CCMenu::create();
-            buttonMenu->setContentSize({ 180.f, 60.f });
-            buttonMenu->setLayout(ColumnLayout::create()->setGap(10.f));
-            m_mainLayer->addChildAtPosition(buttonMenu, Anchor::Center, ccp(0.f, -6.f));
-
             auto* playLayer = static_cast<HookPlayLayer*>(PlayLayer::get());
-            auto learnLabel = playLayer && playLayer->isLearnModeEnabled() ? "Learn: On" : "Learn";
+            auto modesPanel = CCLayerColor::create(ccc4(0, 0, 0, 75), 276.f, 112.f);
+            modesPanel->ignoreAnchorPointForPosition(false);
+            m_mainLayer->addChildAtPosition(modesPanel, Anchor::Top, ccp(0.f, -70.f));
 
-            auto learnButton = CCMenuItemExt::createSpriteExtra(
-                ButtonSprite::create(learnLabel),
+            auto modesTitle = CCLabelBMFont::create("Modes", "goldFont.fnt");
+            modesTitle->setScale(0.45f);
+            modesTitle->setPosition({ 138.f, 97.f });
+            modesPanel->addChild(modesTitle);
+
+            auto learnRow = CCLayerColor::create(ccc4(255, 255, 255, 18), 248.f, 32.f);
+            learnRow->ignoreAnchorPointForPosition(false);
+            learnRow->setPosition({ 14.f, 55.f });
+            modesPanel->addChild(learnRow);
+
+            auto learnLabel = CCLabelBMFont::create("Learn", "bigFont.fnt");
+            learnLabel->setAnchorPoint({ 0.f, 0.5f });
+            learnLabel->setScale(0.5f);
+            learnLabel->setPosition({ 12.f, 16.f });
+            learnRow->addChild(learnLabel);
+
+            auto learnMenu = CCMenu::create();
+            learnMenu->setPosition({ 223.f, 16.f });
+            learnRow->addChild(learnMenu);
+
+            m_learnToggle = CCMenuItemExt::createTogglerWithStandardSprites(0.6f, [this](auto) {
+                if (auto* playLayer = static_cast<HookPlayLayer*>(PlayLayer::get())) {
+                    playLayer->toggleLearnMode();
+                }
+                refreshModeToggles();
+            });
+            m_learnToggle->setID("flukology-modes-learn-toggle"_spr);
+            learnMenu->addChild(m_learnToggle);
+
+            auto useLastStartposRow = CCLayerColor::create(ccc4(255, 255, 255, 18), 248.f, 32.f);
+            useLastStartposRow->ignoreAnchorPointForPosition(false);
+            useLastStartposRow->setPosition({ 14.f, 18.f });
+            modesPanel->addChild(useLastStartposRow);
+
+            auto useLastStartposLabel = CCLabelBMFont::create("Use Last Startpos", "bigFont.fnt");
+            useLastStartposLabel->setAnchorPoint({ 0.f, 0.5f });
+            useLastStartposLabel->setScale(0.42f);
+            useLastStartposLabel->setPosition({ 12.f, 16.f });
+            useLastStartposRow->addChild(useLastStartposLabel);
+
+            auto useLastStartposMenu = CCMenu::create();
+            useLastStartposMenu->setPosition({ 223.f, 16.f });
+            useLastStartposRow->addChild(useLastStartposMenu);
+
+            m_useLastStartposToggle = CCMenuItemExt::createTogglerWithStandardSprites(0.6f, [this](auto) {
+                if (auto* playLayer = static_cast<HookPlayLayer*>(PlayLayer::get())) {
+                    playLayer->toggleStartposPracticeMode();
+                }
+                refreshModeToggles();
+            });
+            m_useLastStartposToggle->setID("flukology-modes-use-last-startpos-toggle"_spr);
+            useLastStartposMenu->addChild(m_useLastStartposToggle);
+
+            auto thresholdPanel = CCLayerColor::create(ccc4(0, 0, 0, 75), 276.f, 90.f);
+            thresholdPanel->ignoreAnchorPointForPosition(false);
+            m_mainLayer->addChildAtPosition(thresholdPanel, Anchor::Bottom, ccp(0.f, 42.f));
+
+            auto thresholdTitle = CCLabelBMFont::create("Use Last Startpos Threshold (%)", "goldFont.fnt");
+            thresholdTitle->setScale(0.34f);
+            thresholdTitle->setPosition({ 138.f, 72.f });
+            thresholdPanel->addChild(thresholdTitle);
+
+            m_thresholdInput = TextInput::create(96.f, "30", "bigFont.fnt");
+            m_thresholdInput->setFilter("0123456789.");
+            m_thresholdInput->setMaxCharCount(5);
+            m_thresholdInput->setPosition({ 92.f, 41.f });
+            if (playLayer) {
+                m_thresholdInput->setString(formatThresholdValue(playLayer->getStartposPracticeThreshold()), false);
+            }
+            thresholdPanel->addChild(m_thresholdInput);
+
+            auto applyMenu = CCMenu::create();
+            applyMenu->setPosition({ 208.f, 41.f });
+            thresholdPanel->addChild(applyMenu);
+
+            auto applyThresholdButton = CCMenuItemExt::createSpriteExtra(
+                ButtonSprite::create("Apply"),
                 [this](CCObject*) {
-                    if (auto* playLayer = static_cast<HookPlayLayer*>(PlayLayer::get())) {
-                        playLayer->toggleLearnMode();
+                    auto* playLayer = static_cast<HookPlayLayer*>(PlayLayer::get());
+                    if (!playLayer || !m_thresholdInput) {
+                        return;
                     }
-                    onClose(nullptr);
+
+                    auto thresholdValue = parseThresholdValue(m_thresholdInput->getString());
+                    if (!thresholdValue) {
+                        FLAlertLayer::create("Flukology", "Enter a valid threshold from 0 to 100.", "OK")->show();
+                        return;
+                    }
+
+                    playLayer->setStartposPracticeThreshold(*thresholdValue);
+                    m_thresholdInput->setString(formatThresholdValue(*thresholdValue), false);
                 }
             );
-            learnButton->setID("flukology-modes-learn-button"_spr);
-            buttonMenu->addChild(learnButton);
-            buttonMenu->updateLayout();
+            applyThresholdButton->setID("flukology-modes-threshold-apply-button"_spr);
+            applyMenu->addChild(applyThresholdButton);
+
+            auto thresholdNote = SimpleTextArea::create(
+                "Learn mode phase 3 uses this too.",
+                "chatFont.fnt",
+                0.55f,
+                236.f
+            );
+            thresholdNote->setAlignment(kCCTextAlignmentCenter);
+            thresholdNote->setPosition({ 138.f, 14.f });
+            thresholdPanel->addChild(thresholdNote);
+
+            refreshModeToggles();
 
             return true;
         }
